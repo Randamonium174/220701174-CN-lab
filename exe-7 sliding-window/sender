@@ -1,0 +1,72 @@
+import time
+import os
+
+# Sliding Window Sender
+def sender():
+    window_size = int(input("Enter the window size: "))
+    message = input("Enter the message to send: ")
+
+    sender_buffer = "Sender_Buffer.txt"
+    receiver_buffer = "Receiver_Buffer.txt"
+
+    # Initialize the sender buffer with frames
+    def create_frames():
+        with open(sender_buffer, 'w') as f:
+            for i in range(len(message)):
+                f.write(f"{i} {message[i]}\n")
+    
+    # Simulate sending frames
+    def send_frames(base):
+        print("Sending frames...")
+        with open(sender_buffer, 'r') as f:
+            lines = f.readlines()
+            for i in range(base, min(base + window_size, len(lines))):
+                print(f"Sent Frame: {lines[i].strip()}")
+    
+    # Update the sender buffer after receiving ACKs
+    def update_sender_buffer(ack_no):
+        with open(sender_buffer, 'r') as f:
+            lines = f.readlines()
+        # Rewrite the sender buffer excluding acknowledged frames
+        with open(sender_buffer, 'w') as f:
+            f.writelines(lines[ack_no:])
+    
+    # Read the Receiver_Buffer for ACK or NACK
+    def read_receiver_buffer():
+        try:
+            with open(receiver_buffer, 'r') as f:
+                ack_line = f.readline().strip()
+                ack_type, ack_no = ack_line.split()
+                return ack_type, int(ack_no)
+        except (FileNotFoundError, ValueError):
+            return None, -1  # No ACK or bad ACK
+    
+    # Create frames initially
+    create_frames()
+    base = 0
+
+    while base < len(message):
+        send_frames(base)
+        
+        print("Waiting for ACK...")
+        time.sleep(2)  # Simulate network delay
+        
+        # Check if there's a response from the receiver
+        ack_type, ack_no = read_receiver_buffer()
+        
+        if ack_type == "ACK":
+            print(f"Received ACK for Frame {ack_no}")
+            if ack_no == base + 1:
+                base += 1
+                update_sender_buffer(base)
+            else:
+                print(f"Unexpected ACK: {ack_no}. Resending frames...")
+        elif ack_type == "NACK":
+            print(f"Received NACK for Frame {ack_no}. Resending frames...")
+        else:
+            print("No ACK received, resending frames...")
+    
+    print("All frames sent successfully!")
+
+if __name__ == "__main__":
+    sender()
