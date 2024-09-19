@@ -1,0 +1,41 @@
+import random
+
+# Sliding Window Receiver
+def receiver():
+    sender_buffer = "Sender_Buffer.txt"
+    receiver_buffer = "Receiver_Buffer.txt"
+
+    # Read the Sender_Buffer for frames
+    def read_sender_buffer():
+        with open(sender_buffer, 'r') as f:
+            lines = f.readlines()
+            frame_no, data = lines[0].strip().split()
+            return int(frame_no), data
+    
+    # Send ACK to the sender
+    def send_ack(ack_no):
+        with open(receiver_buffer, 'w') as f:
+            f.write(f"ACK {ack_no}\n")
+    
+    # Send NACK to the sender
+    def send_nack(nack_no):
+        with open(receiver_buffer, 'w') as f:
+            f.write(f"NACK {nack_no}\n")
+    
+    while True:
+        if os.path.exists(sender_buffer):
+            frame_no, data = read_sender_buffer()
+            print(f"Received Frame: {frame_no} {data}")
+            
+            # Simulate error or successful receipt
+            if random.random() > 0.2:  # 80% chance of successful receipt
+                print(f"Sending ACK for Frame: {frame_no}")
+                send_ack(frame_no + 1)
+            else:
+                print(f"Sending NACK for Frame: {frame_no}")
+                send_nack(frame_no)
+            
+            time.sleep(1)  # Simulate processing time
+
+if __name__ == "__main__":
+    receiver()
