@@ -1,0 +1,22 @@
+const dgram = require('dgram');
+
+// Define the server host and port
+const HOST = '127.0.0.1';
+const PORT = 65432;
+
+// Create a UDP server
+const server = dgram.createSocket('udp4');
+
+// Handle incoming messages
+server.on('message', (msg, rinfo) => {
+    console.log(`Received from client: ${msg.toString()} from ${rinfo.address}:${rinfo.port}`);
+    server.send(msg, rinfo.port, rinfo.address, (err) => {
+        if (err) console.error(err);
+        console.log('Echoed message back to client');
+    });
+});
+
+// Start the server
+server.bind(PORT, HOST, () => {
+    console.log(`UDP Server is running on ${HOST}:${PORT}`);
+});
