@@ -1,0 +1,48 @@
+import socket
+import struct
+import binascii
+
+def ethernet_frame(data):
+    """
+    Unpacks an Ethernet frame
+    """
+    dest_mac, src_mac, proto = struct.unpack('! 6s 6s H', data[:14])
+    return binascii.hexlify(dest_mac).decode('utf-8'), binascii.hexlify(src_mac).decode('utf-8'), socket.htons(proto), data[14:]
+
+def ipv4_packet(data):
+    """
+    Unpacks an IPv4 packet
+    """
+    version_header_length = data[0]
+    header_length = (version_header_length & 15) * 4
+    ttl, proto, src, target = struct.unpack('! 8x B B 2x 4s 4s', data[:20])
+    return ttl, proto, ipv4(src), ipv4(target), data[header_length:]
+
+def ipv4(addr):
+    """
+    Converts an IPv4 address to a readable format
+    """
+    return '.'.join(map(str, addr))
+
+def main():
+    # Create a raw socket and bind it to the public interface
+    conn = socket.socket(socket.AF_PACKET, socket.SOCK_RAW, socket.ntohs(0x0003))
+
+    while True:
+        raw_data, addr = conn.recvfrom(65536)
+        
+        # Parse Ethernet frame
+        dest_mac, src_mac, eth_proto, data = ethernet_frame(raw_data)
+        print('\nEthernet Frame:')
+        print(f'Destination MAC: {dest_mac}, Source MAC: {src_mac}, Protocol: {eth_proto}')
+
+        # Check if IP packet (IPv4)
+        if eth_proto == 8:
+            ttl, proto, src, target, data = ipv4_packet(data)
+            print('\tIPv4 Packet:')
+            print(f'\tTTL: {ttl}, Protocol: {proto}, Source: {src}, Target: {target}')
+            
+            # Additional parsing for TCP, UDP, ICMP can be added here
+
+if __name__ == "__main__":
+    main()
