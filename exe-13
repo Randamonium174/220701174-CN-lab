@@ -1,0 +1,91 @@
+import os
+import socket
+import struct
+import time
+import select
+
+ICMP_ECHO_REQUEST = 8
+DEFAULT_TIMEOUT = 1  # Seconds
+DEFAULT_PACKET_SIZE = 64
+
+def checksum(source_string):
+    """Calculate the checksum of the source string."""
+    sum = 0
+    count_to = (len(source_string) // 2) * 2
+    for count in range(0, count_to, 2):
+        this_val = source_string[count + 1] * 256 + source_string[count]
+        sum += this_val
+        sum &= 0xFFFFFFFF  # Truncate to 32 bits
+    if count_to < len(source_string):
+        sum += source_string[-1]
+        sum &= 0xFFFFFFFF
+    sum = (sum >> 16) + (sum & 0xFFFF)
+    sum += (sum >> 16)
+    return ~sum & 0xFFFF
+
+def create_packet(id):
+    """Create a new echo request packet."""
+    header = struct.pack("bbHHh", ICMP_ECHO_REQUEST, 0, 0, id, 1)
+    data = (192 - struct.calcsize("bbHHh")) * b"Q"  # Padding data
+    my_checksum = checksum(header + data)
+    header = struct.pack("bbHHh", ICMP_ECHO_REQUEST, 0, socket.htons(my_checksum), id, 1)
+    return header + data
+
+def do_one_ping(dest_addr, timeout):
+    """Send one ping to the destination address."""
+    try:
+        sock = socket.socket(socket.AF_INET, socket.SOCK_RAW, socket.IPPROTO_ICMP)
+    except PermissionError as e:
+        raise PermissionError("You need to run this program as root or with elevated privileges.") from e
+
+    packet_id = int((id(timeout) * time.time()) % 65535)
+    packet = create_packet(packet_id)
+
+    send_time = time.time()
+    sock.sendto(packet, (dest_addr, 1))
+
+    delay = receive_pong(sock, packet_id, send_time, timeout)
+    sock.close()
+    return delay
+
+def receive_pong(sock, packet_id, time_sent, timeout):
+    """Receive the pong from the socket."""
+    while True:
+        ready = select.select([sock], [], [], timeout)
+        if ready[0] == []:  # Timeout
+            return None
+        time_received = time.time()
+        rec_packet, _ = sock.recvfrom(1024)
+        icmp_header = rec_packet[20:28]
+        type, code, checksum, p_id, sequence = struct.unpack("bbHHh", icmp_header)
+        if p_id == packet_id:
+            return time_received - time_sent
+
+def ping(host, count=4, timeout=1):
+    """Ping a host."""
+    try:
+        dest_addr = socket.gethostbyname(host)
+    except socket.gaierror:
+        print(f"Cannot resolve {host}: Unknown host")
+        return
+    print(f"Pinging {host} [{dest_addr}] with {DEFAULT_PACKET_SIZE} bytes of data:")
+
+    for i in range(count):
+        try:
+            delay = do_one_ping(dest_addr, timeout)
+        except PermissionError as e:
+            print(e)
+            return
+        if delay is None:
+            print("Request timed out.")
+        else:
+            print(f"Reply from {dest_addr}: time={int(delay * 1000)}ms")
+        time.sleep(1)
+
+    print("\nPing statistics:")
+    print(f"    Packets: Sent = {count}, Received = {count if delay else 0}, Lost = {0 if delay else count}")
+
+# Run the program
+if __name__ == "__main__":
+    host_to_ping = input("Enter a host to ping: ")
+    ping(host_to_ping)
